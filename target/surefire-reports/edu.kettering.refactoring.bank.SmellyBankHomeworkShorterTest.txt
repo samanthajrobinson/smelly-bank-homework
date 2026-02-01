@@ -1,0 +1,30 @@
+-------------------------------------------------------------------------------
+Test set: edu.kettering.refactoring.bank.SmellyBankHomeworkShorterTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 0.026 s <<< FAILURE! -- in edu.kettering.refactoring.bank.SmellyBankHomeworkShorterTest
+edu.kettering.refactoring.bank.SmellyBankHomeworkShorterTest.savingsWithdrawalBelowZero_shouldBeRejectedAndFlagged -- Time elapsed: 0.002 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)
+	at edu.kettering.refactoring.bank.SmellyBankHomeworkShorterTest.savingsWithdrawalBelowZero_shouldBeRejectedAndFlagged(SmellyBankHomeworkShorterTest.java:139)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+edu.kettering.refactoring.bank.SmellyBankHomeworkShorterTest.overdraftBeyondLimit_shouldFlagAccount -- Time elapsed: 0 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:183)
+	at edu.kettering.refactoring.bank.SmellyBankHomeworkShorterTest.overdraftBeyondLimit_shouldFlagAccount(SmellyBankHomeworkShorterTest.java:118)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
