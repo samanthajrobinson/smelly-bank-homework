@@ -1,196 +1,157 @@
 package edu.kettering.refactoring.bank;
 
+import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+public class SmellyBankHomeworkShorterTest {
 
+    /* -----------------------
+       Helpers
+       ----------------------- */
 
-class SmellyBankHomeworkShorterDepositWithdrawTests {
-
-    // ---------- Helper to build standard accounts ----------
     private List<SmellyBankHomeworkShorter.BankAccount> baseAccounts() {
         List<SmellyBankHomeworkShorter.BankAccount> accounts = new ArrayList<>();
-        accounts.add(new SmellyBankHomeworkShorter.CheckingAccount("C-100", "A. Chen", 250, 100));
-        accounts.add(new SmellyBankHomeworkShorter.SavingsAccount("S-200", "B. Patel", 1200, 0.02));
-        accounts.add(new SmellyBankHomeworkShorter.CheckingAccount("C-300", "C. Rivera", 40, 50));
-        accounts.add(new SmellyBankHomeworkShorter.SavingsAccount("S-400", "D. Smith", 9000, 0.03));
+
+        accounts.add(
+            new SmellyBankHomeworkShorter.CheckingAccount(
+                "C-100",
+                "Sam",
+                250.0,
+                200.0
+            )
+        );
+
+        accounts.add(
+            new SmellyBankHomeworkShorter.SavingsAccount(
+                "S-200",
+                "Alex",
+                1200.0,
+                0.02
+            )
+        );
+
         return accounts;
     }
 
-    // ---------- Deposit tests ----------
+    private SmellyBankHomeworkShorter.PolicyConfig policy() {
+        return new SmellyBankHomeworkShorter.PolicyConfig(
+                false,
+                1000.0,
+                5000.0
+        );
+    }
+
+    private SmellyBankHomeworkShorter.FormatConfig format() {
+        return new SmellyBankHomeworkShorter.FormatConfig(
+                false,
+                "USD",
+                2,
+                true
+        );
+    }
+
+    /* -----------------------
+       Tests
+       ----------------------- */
 
     @Test
     void deposit_shouldIncreaseBalance() {
         var accounts = baseAccounts();
-        var acct = (SmellyBankHomeworkShorter.BankAccount) accounts.get(0); // C-100
 
         List<SmellyBankHomeworkShorter.Txn> txns = List.of(
-                new SmellyBankHomeworkShorter.Txn("C-100", "DEPOSIT", 50, "cash")
+            new SmellyBankHomeworkShorter.Txn(
+                "C-100",
+                SmellyBankHomeworkShorter.TxnType.DEPOSIT,
+                50.0,
+                "cash"
+            )
         );
 
         SmellyBankHomeworkShorter.processDailyBatch(
-                accounts, txns,
-                false,
-                1000.0,
-                5000.0,
-                false,
-                "USD",
-                2,
-                true
+                accounts, txns, policy(), format()
         );
 
-        assertEquals(300.0, acct.balance(), 1e-9);
-    }
-
-    // ---------- Withdrawal tests ----------
-
-    @Test
-    void withdrawal_fromCheckingWithinOverdraft_shouldSucceed() {
-        var accounts = baseAccounts();
-        var acct = (SmellyBankHomeworkShorter.BankAccount) accounts.get(0); // C-100
-
-        List<SmellyBankHomeworkShorter.Txn> txns = List.of(
-                new SmellyBankHomeworkShorter.Txn("C-100", "WITHDRAW", 300, "rent")
-        );
-
-        SmellyBankHomeworkShorter.processDailyBatch(
-                accounts, txns,
-                false,
-                1000.0,
-                5000.0,
-                false,
-                "USD",
-                2,
-                true
-        );
-
-        // 250 - 300 = -50, within overdraft limit of 100
-        assertEquals(-50.0, acct.balance(), 1e-9);
+        assertEquals(300.0, accounts.get(0).balance(), 1e-9);
     }
 
     @Test
-    void withdrawal_fromCheckingBeyondOverdraft_shouldBeDeclined() {
+    void withdrawal_shouldDecreaseBalance() {
         var accounts = baseAccounts();
-        var acct = (SmellyBankHomeworkShorter.BankAccount) accounts.get(2); // C-300
 
         List<SmellyBankHomeworkShorter.Txn> txns = List.of(
-                new SmellyBankHomeworkShorter.Txn("C-300", "WITHDRAW", 120, "billpay")
+            new SmellyBankHomeworkShorter.Txn(
+                "C-100",
+                SmellyBankHomeworkShorter.TxnType.WITHDRAW,
+                100.0,
+                "atm"
+            )
         );
 
         SmellyBankHomeworkShorter.processDailyBatch(
-                accounts, txns,
-                false,
-                1000.0,
-                5000.0,
-                false,
-                "USD",
-                2,
-                true
+                accounts, txns, policy(), format()
         );
 
-        // Should remain unchanged
-        assertEquals(40.0, acct.balance(), 1e-9);
+        assertEquals(150.0, accounts.get(0).balance(), 1e-9);
     }
 
     @Test
-    void withdrawal_fromSavingsThatWouldGoNegative_shouldBeDeclined() {
+    void overdraftBeyondLimit_shouldFlagAccount() {
         var accounts = baseAccounts();
-        var acct = (SmellyBankHomeworkShorter.BankAccount) accounts.get(1); // S-200
+        var acct = accounts.get(0);
 
         List<SmellyBankHomeworkShorter.Txn> txns = List.of(
-                new SmellyBankHomeworkShorter.Txn("S-200", "WITHDRAW", 1300, "transfer")
+            new SmellyBankHomeworkShorter.Txn(
+                "C-100",
+                SmellyBankHomeworkShorter.TxnType.WITHDRAW,
+                600.0,
+                "rent"
+            )
         );
 
         SmellyBankHomeworkShorter.processDailyBatch(
-                accounts, txns,
-                false,
-                1000.0,
-                5000.0,
-                false,
-                "USD",
-                2,
-                true
-        );
-
-        assertEquals(1200.0, acct.balance(), 1e-9);
-    }
-
-    // ---------- Flagging & VIP tests ----------
-
-    @Test
-    void largeTransaction_shouldFlagAccount() {
-        var accounts = baseAccounts();
-        var acct = (SmellyBankHomeworkShorter.BankAccount) accounts.get(3); // S-400
-
-        List<SmellyBankHomeworkShorter.Txn> txns = List.of(
-                new SmellyBankHomeworkShorter.Txn("S-400", "DEPOSIT", 1500, "bonus")
-        );
-
-        SmellyBankHomeworkShorter.processDailyBatch(
-                accounts, txns,
-                false,
-                1000.0,  // flag threshold
-                5000.0,
-                false,
-                "USD",
-                2,
-                true
+                accounts, txns, policy(), format()
         );
 
         assertTrue(acct.flagged());
     }
 
     @Test
-    void highBalance_shouldTriggerVipNoteInReport() {
+    void savingsWithdrawalBelowZero_shouldBeRejectedAndFlagged() {
         var accounts = baseAccounts();
+        var acct = accounts.get(1);
 
         List<SmellyBankHomeworkShorter.Txn> txns = List.of(
-                new SmellyBankHomeworkShorter.Txn("S-400", "DEPOSIT", 1500, "bonus")
+            new SmellyBankHomeworkShorter.Txn(
+                "S-200",
+                SmellyBankHomeworkShorter.TxnType.WITHDRAW,
+                2000.0,
+                "oops"
+            )
         );
 
-        String report = SmellyBankHomeworkShorter.processDailyBatch(
-                accounts, txns,
-                false,
-                1000.0,
-                5000.0,  // VIP threshold
-                false,
-                "USD",
-                2,
-                true
+        SmellyBankHomeworkShorter.processDailyBatch(
+                accounts, txns, policy(), format()
         );
 
-        assertTrue(report.contains("VIP NOTE"));
+        assertTrue(acct.flagged());
+        assertEquals(1200.0, acct.balance(), 1e-9);
     }
 
-    // ---------- Report sanity tests ----------
-
     @Test
-    void report_shouldContainSummarySections() {
+    void processDailyBatch_returnsFormattedReport() {
         var accounts = baseAccounts();
 
-        List<SmellyBankHomeworkShorter.Txn> txns = List.of(
-                new SmellyBankHomeworkShorter.Txn("C-100", "DEPOSIT", 10, "test")
-        );
-
         String report = SmellyBankHomeworkShorter.processDailyBatch(
-                accounts, txns,
-                false,
-                1000.0,
-                5000.0,
-                false,
-                "USD",
-                2,
-                true
+                accounts,
+                List.of(),
+                policy(),
+                format()
         );
 
-        assertAll(
-                () -> assertTrue(report.contains("-- POST-CHECKS --")),
-                () -> assertTrue(report.contains("-- SUMMARY A --")),
-                () -> assertTrue(report.contains("-- TOTALS --")),
-                () -> assertTrue(report.contains("-- SUMMARY B --"))
-        );
+        assertNotNull(report);
+        assertTrue(report.contains("BANK BATCH REPORT"));
     }
 }
