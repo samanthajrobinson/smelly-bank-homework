@@ -3,19 +3,7 @@ package edu.kettering.refactoring.bank;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Fully Refactored Bank Batch Processor
- * - Long parameter lists removed with public helper methods
- * - Flagging large transactions even if declined
- * - VIP notes
- * - Summary A and B outputs
- * - Small helper methods for clarity
- */
 public class SmellyBankHomeworkShorter {
-
-    /* =======================
-       Domain Model
-       ======================= */
 
     static abstract class BankAccount {
         private final String id;
@@ -29,18 +17,39 @@ public class SmellyBankHomeworkShorter {
             this.balance = balance;
         }
 
-        public String id() { return id; }
-        public String owner() { return owner; }
-        public double balance() { return balance; }
-        public boolean flagged() { return flagged; }
-        public void flag() { flagged = true; }
+        public String id() {
+            return id;
+        }
+
+        public String owner() {
+            return owner;
+        }
+
+        public double balance() {
+            return balance;
+        }
+
+        public boolean flagged() {
+            return flagged;
+        }
+
+        public void flag() {
+            flagged = true;
+        }
 
         abstract String type();
+
         abstract boolean canWithdraw(double amount);
+
         abstract boolean invalidBalance();
 
-        void deposit(double amount) { balance += amount; }
-        void withdraw(double amount) { balance -= amount; }
+        void deposit(double amount) {
+            balance += amount;
+        }
+
+        void withdraw(double amount) {
+            balance -= amount;
+        }
     }
 
     static class CheckingAccount extends BankAccount {
@@ -52,13 +61,19 @@ public class SmellyBankHomeworkShorter {
         }
 
         @Override
-        boolean canWithdraw(double amount) { return balance - amount >= -overdraft; }
+        boolean canWithdraw(double amount) {
+            return balance - amount >= -overdraft;
+        }
 
         @Override
-        boolean invalidBalance() { return balance < -overdraft; }
+        boolean invalidBalance() {
+            return balance < -overdraft;
+        }
 
         @Override
-        String type() { return "CHECKING"; }
+        String type() {
+            return "CHECKING";
+        }
     }
 
     static class SavingsAccount extends BankAccount {
@@ -70,16 +85,24 @@ public class SmellyBankHomeworkShorter {
         }
 
         @Override
-        boolean canWithdraw(double amount) { return balance - amount >= 0; }
+        boolean canWithdraw(double amount) {
+            return balance - amount >= 0;
+        }
 
         @Override
-        boolean invalidBalance() { return balance < 0; }
+        boolean invalidBalance() {
+            return balance < 0;
+        }
 
         @Override
-        String type() { return "SAVINGS"; }
+        String type() {
+            return "SAVINGS";
+        }
     }
 
-    enum TxnType { DEPOSIT, WITHDRAW }
+    enum TxnType {
+        DEPOSIT, WITHDRAW
+    }
 
     static class Txn {
         final String accountId;
@@ -95,22 +118,18 @@ public class SmellyBankHomeworkShorter {
         }
     }
 
-    /* =======================
-       Configuration
-       ======================= */
-
     record PolicyConfig(
             boolean includeZeroAmountTxns,
             double largeTxnThreshold,
-            double vipBalanceThreshold
-    ) {}
+            double vipBalanceThreshold) {
+    }
 
     record FormatConfig(
             boolean debug,
             String currency,
             int digits,
-            boolean rounding
-    ) {}
+            boolean rounding) {
+    }
 
     static class BatchStats {
         int applied = 0;
@@ -122,12 +141,10 @@ public class SmellyBankHomeworkShorter {
             absTotal += Math.abs(amt);
         }
 
-        void skipped() { skipped++; }
+        void skipped() {
+            skipped++;
+        }
     }
-
-    /* =======================
-       Public Helper Methods for Account Creation
-       ======================= */
 
     public static BankAccount createCheckingAccount(String id, String owner, double balance, double overdraft) {
         return new CheckingAccount(id, owner, balance, overdraft);
@@ -137,16 +154,11 @@ public class SmellyBankHomeworkShorter {
         return new SavingsAccount(id, owner, balance, rate);
     }
 
-    /* =======================
-       Batch Processing
-       ======================= */
-
     public static String processDailyBatch(
             List<BankAccount> accounts,
             List<Txn> txns,
             PolicyConfig policy,
-            FormatConfig fmt
-    ) {
+            FormatConfig fmt) {
         StringBuilder out = new StringBuilder();
         out.append("=== BANK BATCH REPORT ===\n");
 
@@ -165,11 +177,11 @@ public class SmellyBankHomeworkShorter {
 
             if (acct == null) {
                 stats.skipped();
-                if (fmt.debug()) out.append("[dbg] unknown ").append(t.accountId).append("\n");
+                if (fmt.debug())
+                    out.append("[dbg] unknown ").append(t.accountId).append("\n");
                 continue;
             }
 
-            // Transaction header
             out.append(t.type).append(" acct=").append(acct.id())
                     .append(" owner=").append(acct.owner())
                     .append(" amt=").append(format(t.amount, fmt))
@@ -184,10 +196,10 @@ public class SmellyBankHomeworkShorter {
                 applied = true;
             } else if (t.type == TxnType.WITHDRAW) {
                 applied = acct.canWithdraw(t.amount);
-                if (applied) acct.withdraw(t.amount);
+                if (applied)
+                    acct.withdraw(t.amount);
             }
 
-            // Flag large txn even if declined
             if (Math.abs(t.amount) >= policy.largeTxnThreshold()) {
                 acct.flag();
                 out.append("  ** FLAG large txn **\n");
@@ -208,7 +220,6 @@ public class SmellyBankHomeworkShorter {
             out.append("\n");
         }
 
-        // Post-checks for invalid balances
         out.append("-- POST-CHECKS --\n");
         for (BankAccount a : accounts) {
             if (a.invalidBalance()) {
@@ -217,7 +228,6 @@ public class SmellyBankHomeworkShorter {
             }
         }
 
-        // SUMMARY A
         out.append("\n-- SUMMARY A --\n");
         for (BankAccount a : accounts) {
             out.append(a.id()).append(" ").append(a.type())
@@ -227,7 +237,6 @@ public class SmellyBankHomeworkShorter {
                     .append("\n");
         }
 
-        // TOTALS
         out.append("\n-- TOTALS --\n");
         out.append("applied=").append(stats.applied)
                 .append(" skipped=").append(stats.skipped)
@@ -235,7 +244,6 @@ public class SmellyBankHomeworkShorter {
                 .append(" ").append(fmt.currency())
                 .append("\n");
 
-        // SUMMARY B (reverse)
         out.append("\n-- SUMMARY B --\n");
         ListIterator<BankAccount> it = accounts.listIterator(accounts.size());
         while (it.hasPrevious()) {
@@ -252,15 +260,12 @@ public class SmellyBankHomeworkShorter {
     }
 
     private static String format(double value, FormatConfig fmt) {
-        if (!fmt.rounding()) return Double.toString(value);
+        if (!fmt.rounding())
+            return Double.toString(value);
         double factor = Math.pow(10, fmt.digits());
         double rounded = Math.round(value * factor) / factor;
         return String.format(Locale.US, "%." + fmt.digits() + "f", rounded);
     }
-
-    /* =======================
-       Main Method
-       ======================= */
 
     public static void main(String[] args) {
         List<BankAccount> accounts = new ArrayList<>();
@@ -274,8 +279,7 @@ public class SmellyBankHomeworkShorter {
                 new Txn("C-300", TxnType.WITHDRAW, 120, "Billpay overdraft test"),
                 new Txn("S-200", TxnType.WITHDRAW, 1300, "Savings overdraft test"),
                 new Txn("S-400", TxnType.DEPOSIT, 1500, "Bonus deposit"),
-                new Txn("C-100", TxnType.DEPOSIT, 25, "Cash deposit")
-        );
+                new Txn("C-100", TxnType.DEPOSIT, 25, "Cash deposit"));
 
         PolicyConfig policy = new PolicyConfig(false, 1000.0, 5000.0);
         FormatConfig format = new FormatConfig(true, "USD", 2, true);
