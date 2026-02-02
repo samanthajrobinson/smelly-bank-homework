@@ -5,11 +5,15 @@ import java.util.stream.Collectors;
 
 public class SmellyBankHomeworkShorter {
 
+    /* =======================
+       Domain Model
+       ======================= */
+
     static abstract class BankAccount {
         private final String id;
         private final String owner;
         protected double balance;
-        private boolean flagged;
+        private boolean flagged = false;
 
         protected BankAccount(String id, String owner, double balance) {
             this.id = id;
@@ -17,60 +21,42 @@ public class SmellyBankHomeworkShorter {
             this.balance = balance;
         }
 
-        public String id() {
-            return id;
+        public String id() { return id; }
+        public String owner() { return owner; }
+        public double balance() { return balance; }
+        public boolean flagged() { return flagged; }
+
+        public void deposit(double amt) { balance += amt; }
+
+        public boolean withdraw(double amt) {
+            if (!canWithdraw(amt)) return false;
+            balance -= amt;
+            return true;
         }
 
-        public String owner() {
-            return owner;
-        }
+        public void flag() { flagged = true; }
 
-        public double balance() {
-            return balance;
-        }
-
-        public boolean flagged() {
-            return flagged;
-        }
-
-        public void flag() {
-            flagged = true;
-        }
-
-        abstract String type();
-
-        abstract boolean canWithdraw(double amount);
-
+        abstract boolean canWithdraw(double amt);
         abstract boolean invalidBalance();
-
-        void deposit(double amount) {
-            balance += amount;
-        }
-
-        void withdraw(double amount) {
-            balance -= amount;
-        }
+        abstract String type();
     }
 
     static class CheckingAccount extends BankAccount {
         private final double overdraft;
 
-        CheckingAccount(String id, String owner, double balance, double overdraft) {
-            super(id, owner, balance);
+        CheckingAccount(String id, String owner, double bal, double overdraft) {
+            super(id, owner, bal);
             this.overdraft = overdraft;
         }
 
-        @Override
-        boolean canWithdraw(double amount) {
-            return balance - amount >= -overdraft;
+        boolean canWithdraw(double amt) {
+            return balance - amt >= -overdraft;
         }
 
-        @Override
         boolean invalidBalance() {
             return balance < -overdraft;
         }
 
-        @Override
         String type() {
             return "CHECKING";
         }
@@ -79,30 +65,29 @@ public class SmellyBankHomeworkShorter {
     static class SavingsAccount extends BankAccount {
         private final double rate;
 
-        SavingsAccount(String id, String owner, double balance, double rate) {
-            super(id, owner, balance);
+        SavingsAccount(String id, String owner, double bal, double rate) {
+            super(id, owner, bal);
             this.rate = rate;
         }
 
-        @Override
-        boolean canWithdraw(double amount) {
-            return balance - amount >= 0;
+        boolean canWithdraw(double amt) {
+            return balance - amt >= 0;
         }
 
-        @Override
         boolean invalidBalance() {
             return balance < 0;
         }
 
-        @Override
         String type() {
             return "SAVINGS";
         }
     }
 
-    enum TxnType {
-        DEPOSIT, WITHDRAW
-    }
+    /* =======================
+       Transactions
+       ======================= */
+
+    enum TxnType { DEPOSIT, WITHDRAW }
 
     static class Txn {
         final String accountId;
@@ -118,168 +103,197 @@ public class SmellyBankHomeworkShorter {
         }
     }
 
+    /* =======================
+       Configuration
+       ======================= */
+
     record PolicyConfig(
             boolean includeZeroAmountTxns,
             double largeTxnThreshold,
-            double vipBalanceThreshold) {
-    }
+            double vipBalanceThreshold
+    ) {}
 
     record FormatConfig(
             boolean debug,
             String currency,
             int digits,
-            boolean rounding) {
+            boolean rounding
+    ) {}
+
+    /* =======================
+       Supporting Services
+       ======================= */
+
+    static class MoneyFormatter {
+        private final FormatConfig cfg;
+
+        MoneyFormatter(FormatConfig cfg) {
+            this.cfg = cfg;
+        }
+
+        String format(double v) {
+            if (!cfg.rounding()) return Double.toString(v);
+            double f = Math.pow(10, cfg.digits());
+            return String.format(
+                    Locale.US,
+                    "%." + cfg.digits() + "f",
+                    Math.round(v * f) / f
+            );
+        }
     }
 
     static class BatchStats {
         int applied = 0;
         int skipped = 0;
-        double absTotal = 0;
+        double totalAbsAmount = 0;
 
-        void applied(double amt) {
+        void recordApplied(double amt) {
             applied++;
-            absTotal += Math.abs(amt);
+            totalAbsAmount += Math.abs(amt);
         }
 
-        void skipped() {
+        void recordSkipped() {
             skipped++;
         }
     }
 
-    public static BankAccount createCheckingAccount(String id, String owner, double balance, double overdraft) {
-        return new CheckingAccount(id, owner, balance, overdraft);
+    static class Report {
+        private final StringBuilder out = new StringBuilder();
+
+        void line(String s) { out.append(s).append("\n"); }
+        void blank() { out.append("\n"); }
+
+        @Override
+        public String toString() {
+            return out.toString();
+        }
     }
 
-    public static BankAccount createSavingsAccount(String id, String owner, double balance, double rate) {
-        return new SavingsAccount(id, owner, balance, rate);
-    }
+    /* =======================
+       Batch Processor
+       ======================= */
 
     public static String processDailyBatch(
             List<BankAccount> accounts,
             List<Txn> txns,
             PolicyConfig policy,
-            FormatConfig fmt) {
-        StringBuilder out = new StringBuilder();
-        out.append("=== BANK BATCH REPORT ===\n");
-
-        Map<String, BankAccount> accountIndex = accounts.stream()
-                .collect(Collectors.toMap(BankAccount::id, a -> a));
-
-        List<Txn> filteredTxns = txns.stream()
-                .filter(t -> policy.includeZeroAmountTxns || t.amount != 0.0)
-                .toList();
-
+            FormatConfig fmtCfg
+    ) {
+        MoneyFormatter fmt = new MoneyFormatter(fmtCfg);
+        Report r = new Report();
         BatchStats stats = new BatchStats();
 
-        out.append("\n-- APPLY --\n");
-        for (Txn t : filteredTxns) {
-            BankAccount acct = accountIndex.get(t.accountId);
+        Map<String, BankAccount> accountIndex =
+                accounts.stream().collect(Collectors.toMap(BankAccount::id, a -> a));
 
+        r.line("=== BANK BATCH REPORT ===");
+        r.blank();
+        r.line("-- APPLY --");
+
+        for (Txn t : txns) {
+            if (!policy.includeZeroAmountTxns() && t.amount == 0.0)
+                continue;
+
+            BankAccount acct = accountIndex.get(t.accountId);
             if (acct == null) {
-                stats.skipped();
-                if (fmt.debug())
-                    out.append("[dbg] unknown ").append(t.accountId).append("\n");
+                stats.recordSkipped();
+                if (fmtCfg.debug())
+                    r.line("[dbg] unknown " + t.accountId);
                 continue;
             }
 
-            out.append(t.type).append(" acct=").append(acct.id())
-                    .append(" owner=").append(acct.owner())
-                    .append(" amt=").append(format(t.amount, fmt))
-                    .append(" ").append(fmt.currency())
-                    .append(" memo=").append(t.memo)
-                    .append("\n");
+            r.line(t.type + " acct=" + acct.id()
+                    + " owner=" + acct.owner()
+                    + " amt=" + fmt.format(t.amount)
+                    + " " + fmtCfg.currency()
+                    + " memo=" + t.memo);
 
-            boolean applied = false;
-
-            if (t.type == TxnType.DEPOSIT) {
-                acct.deposit(t.amount);
-                applied = true;
-            } else if (t.type == TxnType.WITHDRAW) {
-                applied = acct.canWithdraw(t.amount);
-                if (applied)
-                    acct.withdraw(t.amount);
-            }
+            boolean applied = applyTransaction(acct, t);
 
             if (Math.abs(t.amount) >= policy.largeTxnThreshold()) {
                 acct.flag();
-                out.append("  ** FLAG large txn **\n");
+                r.line("  ** FLAG large txn **");
             }
 
             if (applied) {
-                stats.applied(t.amount);
-                out.append("  newBal=").append(format(acct.balance(), fmt)).append("\n");
+                stats.recordApplied(t.amount);
+                r.line("  newBal=" + fmt.format(acct.balance()));
             } else {
-                stats.skipped();
-                out.append("  DECLINED\n");
+                stats.recordSkipped();
+                r.line("  DECLINED");
             }
 
-            if (acct.balance() >= policy.vipBalanceThreshold()) {
-                out.append("  VIP NOTE\n");
-            }
+            if (acct.balance() >= policy.vipBalanceThreshold())
+                r.line("  VIP NOTE");
 
-            out.append("\n");
+            r.blank();
         }
 
-        out.append("-- POST-CHECKS --\n");
+        r.line("-- POST-CHECKS --");
         for (BankAccount a : accounts) {
             if (a.invalidBalance()) {
                 a.flag();
-                out.append("Flag ").append(a.id()).append(" invalid balance\n");
+                r.line("Flag " + a.id() + " invalid balance");
             }
         }
 
-        out.append("\n-- SUMMARY A --\n");
+        r.blank();
+        r.line("-- SUMMARY A --");
         for (BankAccount a : accounts) {
-            out.append(a.id()).append(" ").append(a.type())
-                    .append(" ").append(a.owner())
-                    .append(" bal=").append(format(a.balance(), fmt))
-                    .append(a.flagged() ? " [FLAG]" : "")
-                    .append("\n");
+            r.line(a.id() + " " + a.type() + " " + a.owner()
+                    + " bal=" + fmt.format(a.balance())
+                    + (a.flagged() ? " [FLAG]" : ""));
         }
 
-        out.append("\n-- TOTALS --\n");
-        out.append("applied=").append(stats.applied)
-                .append(" skipped=").append(stats.skipped)
-                .append(" absTotal=").append(format(stats.absTotal, fmt))
-                .append(" ").append(fmt.currency())
-                .append("\n");
+        r.blank();
+        r.line("-- TOTALS --");
+        r.line("applied=" + stats.applied
+                + " skipped=" + stats.skipped
+                + " absTotal=" + fmt.format(stats.totalAbsAmount)
+                + " " + fmtCfg.currency());
 
-        out.append("\n-- SUMMARY B --\n");
+        r.blank();
+        r.line("-- SUMMARY B --");
         ListIterator<BankAccount> it = accounts.listIterator(accounts.size());
         while (it.hasPrevious()) {
             BankAccount a = it.previous();
-            out.append("[").append(a.type()).append("] ")
-                    .append(a.owner())
-                    .append(" id=").append(a.id())
-                    .append(" bal=").append(format(a.balance(), fmt))
-                    .append(a.flagged() ? " *" : "")
-                    .append("\n");
+            r.line("[" + a.type() + "] " + a.owner()
+                    + " id=" + a.id()
+                    + " bal=" + fmt.format(a.balance())
+                    + (a.flagged() ? " *" : ""));
         }
 
-        return out.toString();
+        return r.toString();
     }
 
-    private static String format(double value, FormatConfig fmt) {
-        if (!fmt.rounding())
-            return Double.toString(value);
-        double factor = Math.pow(10, fmt.digits());
-        double rounded = Math.round(value * factor) / factor;
-        return String.format(Locale.US, "%." + fmt.digits() + "f", rounded);
+    private static boolean applyTransaction(BankAccount acct, Txn t) {
+        return switch (t.type) {
+            case DEPOSIT -> {
+                acct.deposit(t.amount);
+                yield true;
+            }
+            case WITHDRAW -> acct.withdraw(t.amount);
+        };
     }
+
+    /* =======================
+       MAIN (UNCHANGED)
+       ======================= */
 
     public static void main(String[] args) {
         List<BankAccount> accounts = new ArrayList<>();
-        accounts.add(createCheckingAccount("C-100", "A. Chen", 250, 100));
-        accounts.add(createSavingsAccount("S-200", "B. Patel", 1200, 0.02));
-        accounts.add(createCheckingAccount("C-300", "C. Rivera", 40, 50));
-        accounts.add(createSavingsAccount("S-400", "D. Smith", 9000, 0.03));
+        accounts.add(new CheckingAccount("C-100", "A. Chen", 250, 100));
+        accounts.add(new SavingsAccount("S-200", "B. Patel", 1200, 0.02));
+        accounts.add(new CheckingAccount("C-300", "C. Rivera", 40, 50));
+        accounts.add(new SavingsAccount("S-400", "D. Smith", 9000, 0.03));
 
         List<Txn> txns = List.of(
                 new Txn("C-100", TxnType.WITHDRAW, 75, "ATM withdrawal"),
                 new Txn("C-300", TxnType.WITHDRAW, 120, "Billpay overdraft test"),
                 new Txn("S-200", TxnType.WITHDRAW, 1300, "Savings overdraft test"),
                 new Txn("S-400", TxnType.DEPOSIT, 1500, "Bonus deposit"),
-                new Txn("C-100", TxnType.DEPOSIT, 25, "Cash deposit"));
+                new Txn("C-100", TxnType.DEPOSIT, 25, "Cash deposit")
+        );
 
         PolicyConfig policy = new PolicyConfig(false, 1000.0, 5000.0);
         FormatConfig format = new FormatConfig(true, "USD", 2, true);
